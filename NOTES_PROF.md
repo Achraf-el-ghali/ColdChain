@@ -87,7 +87,38 @@ Pour **chaque incident**, le journal enregistre :
   refermée à 7 h 20. — Opérateur 1 »
   (Exemple incomplet au tableau : « la journalisation aujourd'hui à 7 … » — à compléter en cours.)
 
-## 8. Points à faire préciser au professeur
+## 8. URL en ligne dans l'Arduino (ESP8266)
+
+**FAIT dans le code (2026-11-16), comme le prof :** le `.ino` utilise maintenant
+`https://achraf.pythonanywhere.com/api/add/` avec `WiFiClientSecure` + `client.setInsecure()`
+(HTTPS sans vérification du certificat). **Reste à téléverser** et vérifier « Code HTTP : 201 ».
+Les explications ci-dessous (version HTTP) restent valables comme solution de secours.
+
+L'application est hébergée sur PythonAnywhere : **http://achraf.pythonanywhere.com/**
+Pour que l'ESP envoie ses mesures au site en ligne (et plus au PC), il faut changer
+**une seule ligne** dans le `.ino` (version téléversée :
+`C:\Users\HP ULTRA\Downloads\rapport1\ColdChain_ESP8266\ColdChain_ESP8266.ino`, ligne 19) :
+
+```cpp
+// avant (serveur sur le PC, meme Wi-Fi obligatoire)
+const char* SERVER_URL    = "http://10.9.11.141:8000/api/post";
+// apres (serveur en ligne, n'importe quel Wi-Fi avec Internet)
+const char* SERVER_URL    = "http://achraf.pythonanywhere.com/api/post";
+```
+
+Puis **téléverser** sur l'ESP et vérifier « Code HTTP : 201 » dans le Moniteur série.
+
+Points d'attention :
+- Mettre **`http://`** et pas `https://` : le code Arduino actuel (`WiFiClient`) ne gère pas le HTTPS.
+  Si l'option « Force HTTPS » est activée dans l'onglet Web de PythonAnywhere, la désactiver.
+- Utiliser **`/api/post`** (sans slash final). `/api/add/` marche aussi, mais **avec** le slash final :
+  un POST sur `/api/add` sans slash échoue (Django ne peut pas rediriger un POST).
+- Les clés JSON restent `temp` et `hum`.
+- Remplir Gmail et Telegram dans le `.env` **de PythonAnywhere** (onglet Files) puis Reload,
+  sinon les alertes > 25 °C ne partent pas depuis le site en ligne.
+- La base en ligne est séparée de `db.sqlite3` du PC.
+
+## 9. Points à faire préciser au professeur
 
 - Quand op2 et op3 passent-ils à 1 ? Probablement une **escalade** selon le compteur
   (ex. compteur ≥ 1 → op1, compteur plus grand → op2, puis op3), liée aux seuils

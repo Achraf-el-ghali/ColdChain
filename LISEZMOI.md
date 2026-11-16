@@ -50,7 +50,19 @@ Après toute modification de `.env`, **redémarrer le serveur** (Ctrl+C puis rel
 | **Tableau de bord** (température, humidité, alarme sonore) | http://IP_DU_PC:8000/ |
 | Lire les mesures (GET) | http://IP_DU_PC:8000/api/get |
 | Envoyer une mesure (POST) | http://IP_DU_PC:8000/api/post |
+| Envoyer une mesure (POST, page « Ajouter Mesure » du TP) | http://IP_DU_PC:8000/api/add/ (garder le `/` final) |
 | Administration | http://127.0.0.1:8000/admin/ |
+
+### En ligne (PythonAnywhere)
+
+| Usage | URL |
+|---|---|
+| Tableau de bord | https://achraf.pythonanywhere.com/ |
+| Lire les mesures | https://achraf.pythonanywhere.com/api/get |
+| Ajouter une mesure (formulaire du navigateur ou ESP) | https://achraf.pythonanywhere.com/api/add/ |
+| Administration | https://achraf.pythonanywhere.com/admin/ |
+
+`/api/post` et `/api/add/` appellent la même vue (`Dhtviews`) : même JSON, même réponse 201, mêmes alertes.
 
 ## 4. Format JSON
 
@@ -165,7 +177,38 @@ sont **refusés** par Django 6.1 quand `MAILERS` existe ; on y a mis exactement 
    et l'IP dans SERVER_URL (résultat de `ipconfig`, carte Wi-Fi).
 5. Téléverser, Moniteur série à 115200 bauds → on doit voir « Code HTTP : 201 ».
 
-## 9. Dépannage
+## 9. Hébergement sur PythonAnywhere
+
+Code dans `/home/Achraf/ColdChain` (cloné depuis GitHub), environnement virtuel
+`/home/Achraf/.virtualenvs/mysitevirtualenv` (Python 3.13).
+
+Installation (console Bash de PythonAnywhere) :
+
+```bash
+git clone https://github.com/Achraf-el-ghali/ColdChain.git   # mot de passe = token GitHub
+mkvirtualenv --python=/usr/bin/python3.13 mysitevirtualenv
+cd ~/ColdChain
+pip install -r requirements.txt
+cp .env.example .env        # puis remplir .env (Files -> ColdChain -> .env)
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+Onglet **Web** : Manual configuration, Python 3.13 ; Source code et Working directory
+`/home/Achraf/ColdChain` ; Virtualenv `/home/Achraf/.virtualenvs/mysitevirtualenv` ;
+fichier WSGI : `path = '/home/Achraf/ColdChain'` et `DJANGO_SETTINGS_MODULE = 'projet.settings'` ;
+Static files `/static/admin/` et `/static/rest_framework/` (dossiers des paquets dans le virtualenv).
+
+Mettre à jour après une modification :
+1. sur le PC : `git add .` → `git commit -m "..."` → `git push` ;
+2. sur PythonAnywhere : `workon mysitevirtualenv && cd ~/ColdChain` puis `git pull` ;
+3. onglet Web → **Reload**.
+
+ESP8266 vers le site en ligne : `SERVER_URL = "https://achraf.pythonanywhere.com/api/add/"`
+avec `WiFiClientSecure` + `client.setInsecure()` (HTTPS sans vérification du certificat).
+Compte gratuit : cliquer « Run until 3 months from today » dans l'onglet Web tous les 3 mois.
+
+## 10. Dépannage
 
 | Symptôme | Cause / solution |
 |---|---|
@@ -182,3 +225,6 @@ sont **refusés** par Django 6.1 quand `MAILERS` existe ; on y a mis exactement 
 | `ERREUR Telegram : ... chat not found` | mauvais CHAT_ID, ou `/start` jamais envoyé au bot. |
 | `ERREUR Telegram : ... Unauthorized` | token faux ou incomplet. |
 | `[ALERTE] ignorée (cooldown)` | normal : une alerte est déjà partie il y a moins de ALERT_COOLDOWN_SECONDS. |
+| PythonAnywhere : « Something went wrong » | onglet Web → Error log ; souvent `.env` absent (`KeyError: 'DJANGO_SECRET_KEY'`), virtualenv non renseigné, ou WSGI qui pointe vers `mysite`. |
+| PythonAnywhere : nouvelle route en 404 | faire `git pull` **puis** Reload dans l'onglet Web. |
+| `/api/add` (sans `/`) en POST | erreur : toujours écrire `/api/add/` avec le slash final. |

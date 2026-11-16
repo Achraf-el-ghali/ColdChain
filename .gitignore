@@ -1,0 +1,25 @@
+# Liste du TP "Publier un projet Django sur GitHub" (section 5.1)
+
+# Fichiers Python compiles
+__pycache__/
+*.py[cod]
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# PyCharm
+.idea/
+
+# Base de donnees locale
+*.sqlite3
+
+# Secrets (cle Django, Gmail, Telegram) : on garde seulement .env.example
+.env
+.env.*
+!.env.example
+
+# Fichiers envoyes / generes
+media/
+staticfiles/

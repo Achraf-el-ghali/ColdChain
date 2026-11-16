@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cold Chain Monitoring</title>
+<style>
+  :root {
+    --fond: #e9eef3;
+    --carte: #f4f7fa;
+    --tuile: #ffffff;
+    --texte: #3a4250;
+    --gris: #6b7480;
+    --bleu: #3b6fd8;
+    --vert: #4f9a8a;
+    --rouge: #d64545;
+    --rouge-fond: #fdecec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--fond); color: var(--texte);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .carte {
+    width: 100%; max-width: 720px; background: var(--carte); border-radius: 18px;
+    padding: 28px 24px; box-shadow: 0 6px 24px rgba(0,0,0,.07); text-align: center;
+  }
+  h1 { margin: 0 0 22px; font-size: 1.6rem; font-weight: 600; }
+  .tuiles { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .tuile {
+    background: var(--tuile); border-radius: 12px; padding: 22px 12px;
+    transition: background .3s, color .3s;
+  }
+  .tuile .nom { color: var(--gris); font-size: 1.05rem; margin-bottom: 10px; }
+  .tuile .valeur { color: var(--bleu); font-size: 2.2rem; font-weight: 600; }
+  .tuile.alerte { background: var(--rouge-fond); }
+  .tuile.alerte .valeur { color: var(--rouge); }
+  .infos { margin-top: 22px; line-height: 1.8; }
+  #depuis { color: var(--vert); font-weight: 600; }
+  #depuis.vieux { color: var(--rouge); }
+  #bandeau {
+    display: none; margin-top: 18px; padding: 12px; border-radius: 10px;
+    background: var(--rouge); color: #fff; font-weight: 600;
+    animation: clignote 1s infinite;
+  }
+  @keyframes clignote { 50% { opacity: .55; } }
+  .boutons { margin-top: 18px; }
+  button {
+    font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #c8d0da;
+    background: #fff; color: var(--texte); cursor: pointer;
+  }
+  button.actif { background: var(--bleu); border-color: var(--bleu); color: #fff; }
+  .petit { margin-top: 10px; color: var(--gris); font-size: .85rem; }
+  h2 { margin: 26px 0 10px; font-size: 1.1rem; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; background: var(--tuile); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 9px 8px; border-bottom: 1px solid #e3e8ee; font-variant-numeric: tabular-nums; }
+  th { color: var(--gris); font-weight: 500; font-size: .9rem; background: #f0f3f7; }
+  tr:last-child td { border-bottom: none; }
+  tr.alerte td { background: var(--rouge-fond); color: var(--rouge); font-weight: 600; }
+  @media (max-width: 480px) {
+    .tuiles { grid-template-columns: 1fr; }
+    .tuile .valeur { font-size: 1.9rem; }
+  }
+</style>
+</head>
+<body>
+<main class="carte">
+  <h1>Cold Chain Monitoring</h1>
+
+  <div class="tuiles">
+    <div class="tuile" id="tuile-temp">
+      <div class="nom">Température</div>
+      <div class="valeur" id="temp">-- °C</div>
+    </div>
+    <div class="tuile">
+      <div class="nom">Humidité</div>
+      <div class="valeur" id="hum">-- %</div>
+    </div>
+  </div>
+
+  <div class="infos">
+    <div>Dernière mesure : <span id="date">--</span></div>
+    <div id="depuis">Donnée reçue il y a : -- secondes</div>
+  </div>
+
+  <div id="bandeau">⚠️ ALERTE : température supérieure à {{ seuil|floatformat:"-1" }} °C</div>
+
+  <div class="boutons">
+    <button id="btn-son">🔇 Activer le son d'alarme</button>
+  </div>
+  <div class="petit">Seuil d'alerte : {{ seuil|floatformat:"-1" }} °C · mise à jour toutes les 5 s</div>
+
+  <h2>5 dernières mesures</h2>
+  <table>
+    <thead>
+      <tr><th>N°</th><th>Date</th><th>Heure</th><th>Température</th><th>Humidité</th></tr>
+    </thead>
+    <tbody id="liste">
+      <tr><td colspan="5">Chargement…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<script>
+  // Seuil donne par Django (settings.ALERT_THRESHOLD, lu dans .env)
+  const SEUIL = {{ seuil|stringformat:"f" }};
+
+  let derniereDate = null;   // date de la derniere mesure recue
+  let dernierId = null;      // id de la derniere mesure (pour sonner 1 fois par mesure)
+  let sonActif = false;      // le navigateur exige un clic avant de jouer un son
+  let audio = null;
+
+  // --- Son d'alarme : 3 bips generes par le navigateur (pas de fichier mp3) ---
+  function bip() {
+    if (!sonActif || !audio) return;
+    for (let i = 0; i < 3; i++) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = "square";
+      osc.frequency.value = 880;              // note aigue (La 880 Hz)
+      gain.gain.value = 0.2;
+      osc.connect(gain).connect(audio.destination);
+      const debut = audio.currentTime + i * 0.35;
+      osc.start(debut);
+      osc.stop(debut + 0.2);
+    }
+  }
+
+  document.getElementById("btn-son").addEventListener("click", (e) => {
+    sonActif = !sonActif;
+    if (sonActif) {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      audio.resume();
+      bip();                                   // bip de test
+    }
+    e.target.textContent = sonActif ? "🔔 Son d'alarme activé" : "🔇 Activer le son d'alarme";
+    e.target.classList.toggle("actif", sonActif);
+  });
+
+  // --- Lecture de l'API REST /api/get ---
+  async function rafraichir() {
+    try {
+      const rep = await fetch("/api/get", { cache: "no-store" });
+      const json = await rep.json();
+      const mesures = json.data;
+      if (!mesures.length) return;
+
+      // derniere mesure = celle qui a le plus grand id
+      const m = mesures.reduce((a, b) => (b.id > a.id ? b : a));
+
+      document.getElementById("temp").textContent =
+        m.temp === null ? "-- °C" : m.temp.toFixed(1) + " °C";
+      document.getElementById("hum").textContent =
+        m.hum === null ? "-- %" : Math.round(m.hum) + " %";
+
+      derniereDate = new Date(m.dt);          // dt est en UTC (le "Z")
+      const opt = { timeZone: "Africa/Casablanca" };
+      document.getElementById("date").textContent =
+        derniereDate.toLocaleDateString("fr-FR", opt) + " à " +
+        derniereDate.toLocaleTimeString("fr-FR", { ...opt, hour: "2-digit", minute: "2-digit" });
+
+      // Alerte : meme regle que Django (strictement superieur au seuil)
+      const alerte = m.temp !== null && m.temp > SEUIL;
+      document.getElementById("tuile-temp").classList.toggle("alerte", alerte);
+      document.getElementById("bandeau").style.display = alerte ? "block" : "none";
+      if (alerte && m.id !== dernierId) bip();  // sonne a chaque NOUVELLE mesure en alerte
+      dernierId = m.id;
+
+      // Tableau des 5 dernieres mesures (les plus recentes en haut)
+      const cinq = [...mesures].sort((a, b) => b.id - a.id).slice(0, 5);
+      document.getElementById("liste").innerHTML = cinq.map((x) => {
+        const d = new Date(x.dt);
+        const enAlerte = x.temp !== null && x.temp > SEUIL;
+        return `<tr class="${enAlerte ? "alerte" : ""}">
+          <td>${x.id}</td>
+          <td>${d.toLocaleDateString("fr-FR", opt)}</td>
+          <td>${d.toLocaleTimeString("fr-FR", opt)}</td>
+          <td>${x.temp === null ? "--" : x.temp.toFixed(1) + " °C"}${enAlerte ? " ⚠️" : ""}</td>
+          <td>${x.hum === null ? "--" : Math.round(x.hum) + " %"}</td>
+        </tr>`;
+      }).join("");
+    } catch (err) {
+      console.error("Erreur /api/get :", err);
+    }
+  }
+
+  // --- Compteur "il y a X secondes", mis a jour chaque seconde ---
+  function majCompteur() {
+    if (!derniereDate) return;
+    const s = Math.max(0, Math.round((Date.now() - derniereDate) / 1000));
+    const el = document.getElementById("depuis");
+    el.textContent = "Donnée reçue il y a : " + s + " seconde" + (s > 1 ? "s" : "") +
+                     (s > 30 ? " (capteur hors ligne ?)" : "");
+    el.classList.toggle("vieux", s > 30);    // l'ESP envoie toutes les 10 s
+  }
+
+  rafraichir();
+  setInterval(rafraichir, 5000);
+  setInterval(majCompteur, 1000);
+</script>
+</body>
+</html>

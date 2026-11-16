@@ -19,6 +19,7 @@ def Dlist(request):
 
 
 class Dhtviews(generics.CreateAPIView):
+    name = "Ajouter Mesure"   # titre affiche par Django REST framework dans le navigateur
     queryset = Dht11.objects.all()
     serializer_class = DHT11serialize
 
